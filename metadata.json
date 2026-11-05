@@ -1,0 +1,6 @@
+{
+  "name": "Barangay Document Management System",
+  "description": "Comprehensive document request management, resident profiling, organizational hierarchy, staff management, and demographic reporting for Barangay Local Government Units.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
