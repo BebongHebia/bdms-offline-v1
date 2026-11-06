@@ -21,6 +21,10 @@ import {
   ChevronRight,
   UserCheck,
   AlertCircle,
+  Upload,
+  Camera,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 import { ResidentPersonalInfo } from '../types';
 
@@ -67,6 +71,8 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
   const [occupation, setOccupation] = useState('');
   const [phone, setPhone] = useState('09');
   const [email, setEmail] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [photoFileName, setPhotoFileName] = useState('');
   const [bldgNo, setBldgNo] = useState('');
   const [purok, setPurok] = useState('Purok 1 - Sampaguita');
   const [addressStatus, setAddressStatus] = useState<'Permanent' | 'Transient' | 'Current'>('Permanent');
@@ -76,6 +82,36 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
   const [is4Ps, setIs4Ps] = useState(false);
   const [isVoter, setIsVoter] = useState(true);
   const [bloodType, setBloodType] = useState('O+');
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image file is too large. Please select an image under 5MB.');
+      return;
+    }
+
+    setPhotoFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setAvatarUrl(result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePhoto = () => {
+    setAvatarUrl('');
+    setPhotoFileName('');
+  };
 
   const openRegisterModal = () => {
     setEditingResident(null);
@@ -91,6 +127,8 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
     setOccupation('');
     setPhone('09');
     setEmail('');
+    setAvatarUrl('');
+    setPhotoFileName('');
     setBldgNo('');
     setPurok('Purok 1 - Sampaguita');
     setAddressStatus('Permanent');
@@ -117,6 +155,8 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
     setOccupation(res.occupation);
     setPhone(res.phone);
     setEmail(res.email || '');
+    setAvatarUrl(res.avatarUrl || '');
+    setPhotoFileName(res.avatarUrl ? 'Current Profile Photo' : '');
     setBldgNo(res.address.bldgNo);
     setPurok(res.address.purok);
     setAddressStatus(res.address.status);
@@ -158,6 +198,7 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
         occupation,
         phone,
         email: email || undefined,
+        avatarUrl: avatarUrl || undefined,
         isPwd,
         pwdDetails: isPwd ? pwdDetails : undefined,
         isSenior,
@@ -180,6 +221,7 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
         occupation: occupation || 'Unspecified',
         phone: phone || 'N/A',
         email: email || undefined,
+        avatarUrl: avatarUrl || undefined,
         isOfficial: false,
         isPwd,
         pwdDetails: isPwd ? pwdDetails : undefined,
@@ -574,6 +616,83 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
             </div>
 
             <form onSubmit={handleSaveResident} className="mt-4 space-y-4 text-xs">
+              {/* Resident Profile Picture / 2x2 ID Photo (profilePics) */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wide flex items-center gap-1.5">
+                      <Camera className="w-4 h-4 text-emerald-600" />
+                      <span>Resident 2x2 ID Photo (profilePics)</span>
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      Upload photo for official barangay ID, clearances, and resident profile
+                    </p>
+                  </div>
+                  {avatarUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="text-[11px] text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Remove Photo
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {/* Photo Preview */}
+                  <div className="relative shrink-0">
+                    {avatarUrl ? (
+                      <div className="w-20 h-20 rounded-2xl overflow-hidden ring-2 ring-emerald-500 shadow-sm relative group bg-white">
+                        <img
+                          src={avatarUrl}
+                          alt="Resident Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemovePhoto}
+                          className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-semibold cursor-pointer"
+                          title="Remove photo"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 p-2 text-center">
+                        <Camera className="w-6 h-6 text-slate-400 mb-1" />
+                        <span className="text-[9px] font-semibold uppercase leading-tight">2x2 Photo</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upload Button & File Information */}
+                  <div className="flex-1 space-y-2">
+                    <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold cursor-pointer shadow-xs transition-colors">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{avatarUrl ? 'Change Photo' : 'Upload Resident Photo'}</span>
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {photoFileName ? (
+                      <p className="text-[10px] text-emerald-800 font-medium truncate max-w-xs">
+                        Selected: <span className="font-semibold">{photoFileName}</span>
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400">
+                        Supports PNG, JPG, or WEBP (Max 5MB). Photo is saved offline in local storage.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Personal Info Grid */}
               <div className="space-y-3">
                 <p className="font-bold text-slate-800 uppercase tracking-wide text-[11px]">

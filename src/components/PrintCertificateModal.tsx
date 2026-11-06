@@ -272,8 +272,16 @@ export const PrintCertificateModal: React.FC<PrintCertificateModalProps> = ({
         {/* Thumbmark and Photo Boxes (Standard in Philippine Barangay Clearances) */}
         {transaction.documentType === 'Barangay Clearance' && (
           <div className="mt-8 grid grid-cols-2 gap-4 max-w-xs font-sans text-xs">
-            <div className="border border-dashed border-slate-400 h-28 rounded flex flex-col items-center justify-end p-2 bg-slate-50/50">
-              <span className="text-[10px] text-slate-500 uppercase font-semibold">Applicant 2x2 Photo</span>
+            <div className="border border-dashed border-slate-400 h-28 rounded flex flex-col items-center justify-center p-1 bg-slate-50/50 overflow-hidden relative">
+              {resident.avatarUrl ? (
+                <img
+                  src={resident.avatarUrl}
+                  alt={fullName}
+                  className="w-full h-full object-cover rounded-sm"
+                />
+              ) : (
+                <span className="text-[10px] text-slate-500 uppercase font-semibold text-center">Applicant 2x2 Photo</span>
+              )}
             </div>
             <div className="border border-dashed border-slate-400 h-28 rounded flex flex-col items-center justify-end p-2 bg-slate-50/50">
               <span className="text-[10px] text-slate-500 uppercase font-semibold">Right Thumbmark</span>
