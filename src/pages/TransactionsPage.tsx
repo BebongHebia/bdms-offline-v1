@@ -39,6 +39,7 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onOpenNewRes
     createTransaction,
     updateTransactionStatus,
     deleteTransaction,
+    deleteTransactions,
     getResidentById,
     recordPayment,
     updatePayment,
@@ -48,6 +49,11 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onOpenNewRes
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [docTypeFilter, setDocTypeFilter] = useState<string>('All');
+
+  // Multi-select & Deletion state
+  const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
+  const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
 
   // Modals state
   const [isNewTxModalOpen, setIsNewTxModalOpen] = useState(false);
@@ -230,6 +236,46 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onOpenNewRes
     return counts;
   }, [transactions]);
 
+  // Selection calculations
+  const isAllSelected =
+    filteredTransactions.length > 0 &&
+    filteredTransactions.every((tx) => selectedTxIds.includes(tx.id));
+
+  const isSomeSelected =
+    filteredTransactions.some((tx) => selectedTxIds.includes(tx.id)) && !isAllSelected;
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      // Deselect all displayed
+      const filteredIdSet = new Set(filteredTransactions.map((tx) => tx.id));
+      setSelectedTxIds((prev) => prev.filter((id) => !filteredIdSet.has(id)));
+    } else {
+      // Select all displayed
+      const filteredIds = filteredTransactions.map((tx) => tx.id);
+      setSelectedTxIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const handleToggleRowSelect = (id: string) => {
+    setSelectedTxIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleExecuteSingleDelete = () => {
+    if (!txToDelete) return;
+    deleteTransaction(txToDelete.id);
+    setSelectedTxIds((prev) => prev.filter((id) => id !== txToDelete.id));
+    setTxToDelete(null);
+  };
+
+  const handleExecuteBulkDelete = () => {
+    if (selectedTxIds.length === 0) return;
+    deleteTransactions(selectedTxIds);
+    setSelectedTxIds([]);
+    setIsBulkDeleteModalOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -320,12 +366,70 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onOpenNewRes
         </div>
       </div>
 
+      {/* Bulk Action Toolbar (Appears when 1 or more items are selected) */}
+      {selectedTxIds.length > 0 && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in slide-in-from-top-1">
+          <div className="flex items-center gap-3">
+            <span className="w-7 h-7 rounded-full bg-rose-600 text-white font-extrabold flex items-center justify-center text-xs shadow-xs">
+              {selectedTxIds.length}
+            </span>
+            <div>
+              <p className="font-bold text-rose-950 text-sm">
+                {selectedTxIds.length} Transaction{selectedTxIds.length > 1 ? 's' : ''} Selected
+              </p>
+              <p className="text-[11px] text-rose-700">
+                You can delete all selected data in a single action
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedTxIds([])}
+              className="text-slate-500 hover:text-slate-800 underline ml-2 font-medium cursor-pointer"
+            >
+              Clear Selection
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isAllSelected && (
+              <button
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="px-3 py-1.5 rounded-xl bg-white border border-rose-200 hover:bg-rose-100/50 text-rose-900 font-semibold cursor-pointer transition-colors"
+              >
+                Select All ({filteredTransactions.length})
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsBulkDeleteModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-900/20 transition-all cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete Selected ({selectedTxIds.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Transactions Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200/60">
               <tr>
+                <th className="py-3.5 px-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = isSomeSelected;
+                    }}
+                    onChange={handleToggleSelectAll}
+                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                    title={isAllSelected ? 'Deselect All' : 'Select All Data in Table'}
+                  />
+                </th>
                 <th className="py-3.5 px-4">Tracking Code</th>
                 <th className="py-3.5 px-4">Resident Applicant</th>
                 <th className="py-3.5 px-4">Document Type</th>
@@ -338,7 +442,7 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onOpenNewRes
             <tbody className="divide-y divide-slate-100">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <FileText className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600">No transactions found</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -354,9 +458,27 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onOpenNewRes
                     : 'Unknown Resident';
 
                   const payment = payments.find((p) => p.transactionCode === tx.transactionCode);
+                  const isSelected = selectedTxIds.includes(tx.id);
 
                   return (
-                    <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr
+                      key={tx.id}
+                      className={`transition-colors ${
+                        isSelected
+                          ? 'bg-rose-50/60 hover:bg-rose-50/80'
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <td className="py-3.5 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleRowSelect(tx.id)}
+                          className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                          title="Select row"
+                        />
+                      </td>
+
                       <td className="py-3.5 px-4 font-mono font-medium text-slate-700">
                         <div className="flex items-center gap-1.5">
                           <span className="font-semibold text-slate-900">{tx.transactionCode}</span>
@@ -498,13 +620,9 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onOpenNewRes
 
                           {/* Delete */}
                           <button
-                            onClick={() => {
-                              if (confirm(`Delete transaction ${tx.transactionCode}?`)) {
-                                deleteTransaction(tx.id);
-                              }
-                            }}
+                            onClick={() => setTxToDelete(tx)}
                             className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                            title="Delete transaction"
+                            title="Delete this transaction"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1026,6 +1144,143 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({ onOpenNewRes
           barangayInfo={barangayInfo}
           onClose={() => setSelectedTxForPrint(null)}
         />
+      )}
+
+      {/* MODAL 5: Single Delete Confirmation Modal */}
+      {txToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 text-rose-600 mb-3">
+              <div className="p-3 bg-rose-100 rounded-xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Delete Transaction?</h3>
+                <p className="text-xs text-slate-500 font-mono">
+                  {txToDelete.transactionCode}
+                </p>
+              </div>
+            </div>
+
+            <div className="my-4 p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Document Type:</span>
+                <span className="font-semibold text-slate-900">{txToDelete.documentType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Applicant:</span>
+                <span className="font-semibold text-slate-900">
+                  {(() => {
+                    const r = getResidentById(txToDelete.personId);
+                    return r ? `${r.firstName} ${r.lastName}` : 'Resident';
+                  })()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Purpose:</span>
+                <span className="text-slate-700 truncate max-w-[200px]">{txToDelete.purpose}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Status:</span>
+                <span className="font-bold text-slate-800">{txToDelete.status}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-rose-600 mb-5 leading-relaxed">
+              Are you sure you want to delete this document request? This will permanently remove the record and any linked official receipt from the offline database.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setTxToDelete(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteSingleDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-900/20 cursor-pointer transition-all"
+              >
+                Yes, Delete Record
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: Bulk Delete Confirmation Modal (Single action to delete multiple records) */}
+      {isBulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 text-rose-600 mb-3">
+              <div className="p-3 bg-rose-100 rounded-xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">
+                  Delete {selectedTxIds.length} Selected Transactions?
+                </h3>
+                <p className="text-xs text-rose-700 font-medium">
+                  Single Action Batch Deletion
+                </p>
+              </div>
+            </div>
+
+            <div className="my-4 space-y-3 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                You are about to permanently delete the following <span className="font-bold text-slate-900">{selectedTxIds.length} transaction(s)</span> in a single action:
+              </p>
+
+              {/* Preview of items to be deleted */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto space-y-1.5 font-mono text-[11px]">
+                {selectedTxIds.slice(0, 8).map((id) => {
+                  const tx = transactions.find((t) => t.id === id);
+                  const resident = tx ? getResidentById(tx.personId) : null;
+                  return (
+                    <div key={id} className="flex items-center justify-between py-0.5 border-b border-slate-100 last:border-0">
+                      <span className="font-bold text-slate-800">{tx?.transactionCode || id}</span>
+                      <span className="text-slate-500 truncate max-w-[180px]">
+                        {tx?.documentType} ({resident?.lastName || 'Resident'})
+                      </span>
+                    </div>
+                  );
+                })}
+                {selectedTxIds.length > 8 && (
+                  <p className="text-slate-400 font-sans italic text-[10px] text-center pt-1">
+                    ... and {selectedTxIds.length - 8} more transaction(s)
+                  </p>
+                )}
+              </div>
+
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                <p className="leading-snug text-[11px]">
+                  <span className="font-bold">Warning:</span> This operation cannot be undone. All selected document requests, audit histories, and corresponding official payment receipts will be erased.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsBulkDeleteModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteBulkDelete}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-900/20 cursor-pointer transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Delete All {selectedTxIds.length} Selected</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

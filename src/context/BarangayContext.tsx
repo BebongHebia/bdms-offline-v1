@@ -38,6 +38,7 @@ interface BarangayContextType {
   addResident: (resident: Omit<ResidentPersonalInfo, 'id' | 'createdAt' | 'recordNo'>) => ResidentPersonalInfo;
   updateResident: (id: string, updates: Partial<ResidentPersonalInfo>) => void;
   deleteResident: (id: string) => void;
+  deleteResidents: (ids: string[]) => void;
   getResidentById: (id: string) => ResidentPersonalInfo | undefined;
 
   // Transactions
@@ -62,6 +63,7 @@ interface BarangayContextType {
     extra?: { rejectionReason?: string; remarks?: string; issueDate?: string }
   ) => void;
   deleteTransaction: (id: string) => void;
+  deleteTransactions: (ids: string[]) => void;
 
   // Payments
   payments: Payment[];
@@ -263,6 +265,13 @@ export const BarangayProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const deleteResident = (id: string) => {
     setResidents((prev) => prev.filter((r) => r.id !== id));
+    setTransactions((prev) => prev.filter((t) => t.personId !== id));
+  };
+
+  const deleteResidents = (ids: string[]) => {
+    const idSet = new Set(ids);
+    setResidents((prev) => prev.filter((r) => !idSet.has(r.id)));
+    setTransactions((prev) => prev.filter((t) => !idSet.has(t.personId)));
   };
 
   const getResidentById = (id: string) => {
@@ -357,7 +366,19 @@ export const BarangayProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const deleteTransaction = (id: string) => {
+    const target = transactions.find((t) => t.id === id);
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+    if (target) {
+      setPayments((prev) => prev.filter((p) => p.transactionCode !== target.transactionCode));
+    }
+  };
+
+  const deleteTransactions = (ids: string[]) => {
+    const idSet = new Set(ids);
+    const targets = transactions.filter((t) => idSet.has(t.id));
+    const codeSet = new Set(targets.map((t) => t.transactionCode));
+    setTransactions((prev) => prev.filter((t) => !idSet.has(t.id)));
+    setPayments((prev) => prev.filter((p) => !codeSet.has(p.transactionCode)));
   };
 
   // Payments
@@ -467,11 +488,13 @@ export const BarangayProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         addResident,
         updateResident,
         deleteResident,
+        deleteResidents,
         getResidentById,
         transactions,
         createTransaction,
         updateTransactionStatus,
         deleteTransaction,
+        deleteTransactions,
         payments,
         recordPayment,
         updatePayment,

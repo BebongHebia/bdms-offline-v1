@@ -20,6 +20,7 @@ import {
   Printer,
   ChevronRight,
   UserCheck,
+  AlertCircle,
 } from 'lucide-react';
 import { ResidentPersonalInfo } from '../types';
 
@@ -28,12 +29,25 @@ interface ResidentsPageProps {
 }
 
 export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransactionForResident }) => {
-  const { residents, addResident, updateResident, deleteResident, transactions, barangayInfo } = useBarangay();
+  const {
+    residents,
+    addResident,
+    updateResident,
+    deleteResident,
+    deleteResidents,
+    transactions,
+    barangayInfo,
+  } = useBarangay();
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [purokFilter, setPurokFilter] = useState('All');
   const [tagFilter, setTagFilter] = useState('All');
+
+  // Multi-select & Deletion state
+  const [selectedResidentIds, setSelectedResidentIds] = useState<string[]>([]);
+  const [residentToDelete, setResidentToDelete] = useState<ResidentPersonalInfo | null>(null);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
 
   // Modal states
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -207,6 +221,44 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
     });
   }, [residents, searchTerm, purokFilter, tagFilter]);
 
+  // Selection calculations
+  const isAllSelected =
+    filteredResidents.length > 0 &&
+    filteredResidents.every((r) => selectedResidentIds.includes(r.id));
+
+  const isSomeSelected =
+    filteredResidents.some((r) => selectedResidentIds.includes(r.id)) && !isAllSelected;
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      const filteredIdSet = new Set(filteredResidents.map((r) => r.id));
+      setSelectedResidentIds((prev) => prev.filter((id) => !filteredIdSet.has(id)));
+    } else {
+      const filteredIds = filteredResidents.map((r) => r.id);
+      setSelectedResidentIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const handleToggleRowSelect = (id: string) => {
+    setSelectedResidentIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleExecuteSingleDelete = () => {
+    if (!residentToDelete) return;
+    deleteResident(residentToDelete.id);
+    setSelectedResidentIds((prev) => prev.filter((id) => id !== residentToDelete.id));
+    setResidentToDelete(null);
+  };
+
+  const handleExecuteBulkDelete = () => {
+    if (selectedResidentIds.length === 0) return;
+    deleteResidents(selectedResidentIds);
+    setSelectedResidentIds([]);
+    setIsBulkDeleteModalOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -274,12 +326,70 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
         </div>
       </div>
 
+      {/* Bulk Action Toolbar (Appears when 1 or more residents are selected) */}
+      {selectedResidentIds.length > 0 && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in slide-in-from-top-1">
+          <div className="flex items-center gap-3">
+            <span className="w-7 h-7 rounded-full bg-rose-600 text-white font-extrabold flex items-center justify-center text-xs shadow-xs">
+              {selectedResidentIds.length}
+            </span>
+            <div>
+              <p className="font-bold text-rose-950 text-sm">
+                {selectedResidentIds.length} Resident{selectedResidentIds.length > 1 ? 's' : ''} Selected
+              </p>
+              <p className="text-[11px] text-rose-700">
+                You can delete all selected data in a single action
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedResidentIds([])}
+              className="text-slate-500 hover:text-slate-800 underline ml-2 font-medium cursor-pointer"
+            >
+              Clear Selection
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isAllSelected && (
+              <button
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="px-3 py-1.5 rounded-xl bg-white border border-rose-200 hover:bg-rose-100/50 text-rose-900 font-semibold cursor-pointer transition-colors"
+              >
+                Select All ({filteredResidents.length})
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsBulkDeleteModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-900/20 transition-all cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete Selected ({selectedResidentIds.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Residents Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200/60">
               <tr>
+                <th className="py-3.5 px-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = isSomeSelected;
+                    }}
+                    onChange={handleToggleSelectAll}
+                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                    title={isAllSelected ? 'Deselect All' : 'Select All Residents in Table'}
+                  />
+                </th>
                 <th className="py-3.5 px-4">Record ID</th>
                 <th className="py-3.5 px-4">Full Name</th>
                 <th className="py-3.5 px-4">Sex / Age</th>
@@ -292,7 +402,7 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
             <tbody className="divide-y divide-slate-100">
               {filteredResidents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     No resident records found. Click "Register New Resident" to add one.
                   </td>
                 </tr>
@@ -300,9 +410,27 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
                 filteredResidents.map((res) => {
                   const birthYear = new Date(res.bday).getFullYear();
                   const age = new Date().getFullYear() - birthYear;
+                  const isSelected = selectedResidentIds.includes(res.id);
 
                   return (
-                    <tr key={res.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr
+                      key={res.id}
+                      className={`transition-colors ${
+                        isSelected
+                          ? 'bg-rose-50/60 hover:bg-rose-50/80'
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <td className="py-3.5 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleRowSelect(res.id)}
+                          className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                          title="Select row"
+                        />
+                      </td>
+
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
                         {res.recordNo}
                       </td>
@@ -412,12 +540,8 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
 
                           {/* Delete */}
                           <button
-                            onClick={() => {
-                              if (confirm(`Remove resident record for ${res.firstName} ${res.lastName}?`)) {
-                                deleteResident(res.id);
-                              }
-                            }}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                            onClick={() => setResidentToDelete(res)}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                             title="Delete Record"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -793,6 +917,137 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Single Resident Delete Confirmation */}
+      {residentToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 text-rose-600 mb-3">
+              <div className="p-3 bg-rose-100 rounded-xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Delete Resident Record?</h3>
+                <p className="text-xs text-slate-500 font-mono">
+                  {residentToDelete.recordNo}
+                </p>
+              </div>
+            </div>
+
+            <div className="my-4 p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Full Name:</span>
+                <span className="font-semibold text-slate-900">
+                  {residentToDelete.firstName} {residentToDelete.middleName ? `${residentToDelete.middleName[0]}.` : ''} {residentToDelete.lastName} {residentToDelete.suffix || ''}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Purok / Address:</span>
+                <span className="text-slate-800 truncate max-w-[200px]">
+                  {residentToDelete.address.purok}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Contact:</span>
+                <span className="text-slate-700 font-mono">{residentToDelete.phone}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-rose-600 mb-5 leading-relaxed">
+              Are you sure you want to permanently delete this resident profile? Any past document requests associated with this resident will also be removed.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setResidentToDelete(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteSingleDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-900/20 cursor-pointer transition-all"
+              >
+                Yes, Delete Resident
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Bulk Delete Confirmation Modal (Single action to delete multiple residents) */}
+      {isBulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 text-rose-600 mb-3">
+              <div className="p-3 bg-rose-100 rounded-xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">
+                  Delete {selectedResidentIds.length} Selected Residents?
+                </h3>
+                <p className="text-xs text-rose-700 font-medium">
+                  Single Action Batch Deletion
+                </p>
+              </div>
+            </div>
+
+            <div className="my-4 space-y-3 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                You are about to permanently delete the following <span className="font-bold text-slate-900">{selectedResidentIds.length} resident profile(s)</span> in a single action:
+              </p>
+
+              {/* Preview of residents to be deleted */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-40 overflow-y-auto space-y-1.5 font-mono text-[11px]">
+                {selectedResidentIds.slice(0, 8).map((id) => {
+                  const res = residents.find((r) => r.id === id);
+                  return (
+                    <div key={id} className="flex items-center justify-between py-0.5 border-b border-slate-100 last:border-0">
+                      <span className="font-bold text-slate-800">{res?.recordNo || id}</span>
+                      <span className="text-slate-600 truncate max-w-[200px]">
+                        {res ? `${res.firstName} ${res.lastName}` : 'Resident'} ({res?.address.purok.split(' - ')[0] || ''})
+                      </span>
+                    </div>
+                  );
+                })}
+                {selectedResidentIds.length > 8 && (
+                  <p className="text-slate-400 font-sans italic text-[10px] text-center pt-1">
+                    ... and {selectedResidentIds.length - 8} more resident profile(s)
+                  </p>
+                )}
+              </div>
+
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                <p className="leading-snug text-[11px]">
+                  <span className="font-bold">Warning:</span> This operation cannot be undone. All selected resident records, personal addresses, and their corresponding transaction histories will be permanently deleted.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsBulkDeleteModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteBulkDelete}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-900/20 cursor-pointer transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Delete All {selectedResidentIds.length} Selected</span>
+              </button>
             </div>
           </div>
         </div>
