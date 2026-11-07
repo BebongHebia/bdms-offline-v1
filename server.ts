@@ -255,7 +255,7 @@ app.post('/api/mysql/sync', async (req: Request, res: Response) => {
   }
 });
 
-// Setup server and Vite middleware
+// Setup server and Vite middleware with automatic port conflict handling
 async function startServer() {
   await initMySqlConnection();
 
@@ -263,7 +263,7 @@ async function startServer() {
 
   if (!isProd) {
     const vite = await createViteServer({
-      server: { middlewareMode: true, host: '0.0.0.0', port: Number(PORT) },
+      server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -274,9 +274,42 @@ async function startServer() {
     });
   }
 
-  app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`[BDMS] Application running at http://localhost:${PORT}`);
-  });
+  // Function to bind server with fallback if port 3000 is occupied
+  const initialPort = Number(process.env.PORT) || 3000;
+
+  function attemptListen(port: number, attemptsLeft = 5) {
+    const serverInstance = app.listen(port, '0.0.0.0', () => {
+      console.log(`\n======================================================`);
+      console.log(`✓ [BDMS] Server is LIVE & Running!`);
+      console.log(`✓ Local Access:   http://localhost:${port}`);
+      console.log(`✓ Network Access: http://127.0.0.1:${port}`);
+      console.log(`✓ MySQL Database: "${mysqlConfig.database}" (${isMySqlAvailable ? 'Connected' : 'Offline Storage Mode'})`);
+      console.log(`======================================================\n`);
+    });
+
+    serverInstance.on('error', (err: any) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`\n[BDMS Warning] Port ${port} is already in use by another running terminal or app!`);
+        if (attemptsLeft > 0) {
+          const nextPort = port + 1;
+          console.log(`[BDMS] Automatically trying alternate port: http://localhost:${nextPort}...`);
+          attemptListen(nextPort, attemptsLeft - 1);
+        } else {
+          console.error(`\n[BDMS Error] Could not find an open port.`);
+          console.error(`How to free port 3000 on Windows:`);
+          console.error(`  1. Close any other open Command Prompt / PowerShell terminal windows.`);
+          console.error(`  2. Or run: npx kill-port 3000`);
+          console.error(`  3. Or run in CMD: taskkill /F /IM node.exe\n`);
+          process.exit(1);
+        }
+      } else {
+        console.error('[BDMS] Server error:', err);
+        process.exit(1);
+      }
+    });
+  }
+
+  attemptListen(initialPort);
 }
 
 startServer();
