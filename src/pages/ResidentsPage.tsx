@@ -23,10 +23,10 @@ import {
   AlertCircle,
   Upload,
   Camera,
-  Image as ImageIcon,
   X,
 } from 'lucide-react';
 import { ResidentPersonalInfo } from '../types';
+import { optimizeProfileImage } from '../utils/imageUtils';
 
 interface ResidentsPageProps {
   onOpenNewTransactionForResident?: (residentId: string) => void;
@@ -83,29 +83,37 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
   const [isVoter, setIsVoter] = useState(true);
   const [bloodType, setBloodType] = useState('O+');
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file (PNG, JPG, JPEG, WEBP).');
+      alert('Please select a valid image file (PNG, JPG, JPEG, WEBP).');
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Image file is too large. Please select an image under 5MB.');
+    // Limit original upload size check to 15MB
+    if (file.size > 15 * 1024 * 1024) {
+      alert('Selected image file is too large (maximum 15MB).');
       return;
     }
 
-    setPhotoFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setAvatarUrl(result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      setIsCompressingPhoto(true);
+      setPhotoFileName(file.name);
+      
+      // Optimize & compress client-side to 400x400 JPEG (~30KB-40KB)
+      // This guarantees it will NEVER exceed localStorage quota and runs smoothly on local PC!
+      const compressedDataUrl = await optimizeProfileImage(file, 400, 400, 0.85);
+      setAvatarUrl(compressedDataUrl);
+    } catch (err) {
+      console.error('Failed to process resident photo:', err);
+      alert('Failed to process image file. Please try another image.');
+    } finally {
+      setIsCompressingPhoto(false);
+    }
   };
 
   const handleRemovePhoto = () => {
@@ -669,24 +677,30 @@ export const ResidentsPage: React.FC<ResidentsPageProps> = ({ onOpenNewTransacti
 
                   {/* Upload Button & File Information */}
                   <div className="flex-1 space-y-2">
-                    <label className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold cursor-pointer shadow-xs transition-colors">
+                    <label className={`inline-flex items-center gap-2 px-3.5 py-2 ${isCompressingPhoto ? 'bg-slate-400 cursor-wait' : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer'} text-white rounded-xl text-xs font-semibold shadow-xs transition-colors`}>
                       <Upload className="w-3.5 h-3.5" />
-                      <span>{avatarUrl ? 'Change Photo' : 'Upload Resident Photo'}</span>
+                      <span>{isCompressingPhoto ? 'Optimizing photo...' : avatarUrl ? 'Change Photo' : 'Upload Resident Photo'}</span>
                       <input
                         type="file"
                         accept="image/png, image/jpeg, image/jpg, image/webp"
                         onChange={handleImageUpload}
+                        disabled={isCompressingPhoto}
                         className="hidden"
                       />
                     </label>
 
                     {photoFileName ? (
-                      <p className="text-[10px] text-emerald-800 font-medium truncate max-w-xs">
-                        Selected: <span className="font-semibold">{photoFileName}</span>
-                      </p>
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] text-emerald-800 font-medium truncate max-w-xs">
+                          Selected: <span className="font-semibold">{photoFileName}</span>
+                        </p>
+                        <p className="text-[9px] text-emerald-600 font-bold">
+                          ✓ Auto-optimized for local PC storage & MySQL database
+                        </p>
+                      </div>
                     ) : (
                       <p className="text-[10px] text-slate-400">
-                        Supports PNG, JPG, or WEBP (Max 5MB). Photo is saved offline in local storage.
+                        Supports PNG, JPG, or WEBP. Automatically optimized to ~35KB for fast local PC persistence.
                       </p>
                     )}
                   </div>

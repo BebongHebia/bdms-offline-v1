@@ -139,37 +139,50 @@ export const BarangayProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return saved ? JSON.parse(saved) : initialOfficials;
   });
 
+  // Helper to safely write to localStorage without crashing if storage quota is exceeded
+  const safeSetItem = (key: string, value: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (err) {
+      console.warn(`[BDMS] Warning: Failed to persist ${key} to localStorage:`, err);
+    }
+  };
+
   // Sync to local storage for offline capability
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(currentUser));
+      safeSetItem(STORAGE_KEYS.USER, currentUser);
     } else {
-      localStorage.removeItem(STORAGE_KEYS.USER);
+      try {
+        localStorage.removeItem(STORAGE_KEYS.USER);
+      } catch {
+        // ignore
+      }
     }
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.BARANGAY, JSON.stringify(barangayInfo));
+    safeSetItem(STORAGE_KEYS.BARANGAY, barangayInfo);
   }, [barangayInfo]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    safeSetItem(STORAGE_KEYS.USERS, users);
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.RESIDENTS, JSON.stringify(residents));
+    safeSetItem(STORAGE_KEYS.RESIDENTS, residents);
   }, [residents]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
+    safeSetItem(STORAGE_KEYS.TRANSACTIONS, transactions);
   }, [transactions]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(payments));
+    safeSetItem(STORAGE_KEYS.PAYMENTS, payments);
   }, [payments]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.OFFICIALS, JSON.stringify(officials));
+    safeSetItem(STORAGE_KEYS.OFFICIALS, officials);
   }, [officials]);
 
   // Auth

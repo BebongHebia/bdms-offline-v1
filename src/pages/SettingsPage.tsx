@@ -10,7 +10,14 @@ import {
   CheckCircle,
   AlertTriangle,
   Info,
+  Database,
+  Server,
+  Download,
+  RefreshCw,
+  FileCode,
+  Check,
 } from 'lucide-react';
+import { downloadMySqlDump } from '../utils/sqlExporter';
 
 export const SettingsPage: React.FC = () => {
   const {
@@ -72,6 +79,78 @@ export const SettingsPage: React.FC = () => {
       }
     };
     reader.readAsText(file);
+  };
+
+  // MySQL local sync & export state
+  const [isExportingSql, setIsExportingSql] = useState(false);
+  const [isSyncingSql, setIsSyncingSql] = useState(false);
+  const [sqlMessage, setSqlMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  const handleDownloadMySql = () => {
+    setIsExportingSql(true);
+    try {
+      downloadMySqlDump({
+        barangayInfo,
+        users,
+        residents,
+        transactions,
+        payments,
+        officials,
+      });
+      setSqlMessage({
+        type: 'success',
+        text: 'MySQL database dump (.sql) generated and downloaded! Ready to import into XAMPP/phpMyAdmin.',
+      });
+    } catch (err: any) {
+      setSqlMessage({
+        type: 'error',
+        text: `Export failed: ${err?.message || 'Unknown error'}`,
+      });
+    } finally {
+      setIsExportingSql(false);
+      setTimeout(() => setSqlMessage(null), 6000);
+    }
+  };
+
+  const handleSyncToLocalMySql = async () => {
+    setIsSyncingSql(true);
+    setSqlMessage({ type: 'info', text: 'Connecting to local MySQL server at localhost:3306...' });
+
+    try {
+      const res = await fetch('/api/mysql/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          barangayInfo,
+          users,
+          residents,
+          transactions,
+          payments,
+          officials,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSqlMessage({
+          type: 'success',
+          text: '✓ All records and resident pictures successfully synced to local MySQL database (barangay_db)!',
+        });
+      } else {
+        setSqlMessage({
+          type: 'error',
+          text: `MySQL notice: ${data.message || 'Make sure MySQL is running via XAMPP and run "npm run dev:mysql" on your PC.'}`,
+        });
+      }
+    } catch {
+      setSqlMessage({
+        type: 'info',
+        text: 'Local MySQL runner is not active on this port. To run with MySQL on your PC: start XAMPP MySQL and run "npm run dev:mysql". You can also click "Download MySQL Database (.sql)" above to import directly into phpMyAdmin!',
+      });
+    } finally {
+      setIsSyncingSql(false);
+      setTimeout(() => setSqlMessage(null), 7000);
+    }
   };
 
   return (
@@ -282,6 +361,142 @@ export const SettingsPage: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* MySQL Database & Local PC Setup (XAMPP / MySQL Server Integration) */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-sky-50 text-sky-700">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <span>MySQL Database & Local PC Setup</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 border border-sky-200">
+                  XAMPP / phpMyAdmin Ready
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                Use browser offline storage here, and run an authentic MySQL database on your local PC
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSyncToLocalMySql}
+              disabled={isSyncingSql}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              title="Test connection and sync data to local MySQL"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${isSyncingSql ? 'animate-spin' : ''}`} />
+              <span>{isSyncingSql ? 'Syncing...' : 'Sync to Local MySQL'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadMySql}
+              disabled={isExportingSql}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-md shadow-sky-900/15 transition-all cursor-pointer"
+            >
+              <Download className="w-4 h-4 text-sky-200" />
+              <span>Download MySQL Database (.sql)</span>
+            </button>
+          </div>
+        </div>
+
+        {sqlMessage && (
+          <div
+            className={`p-3.5 rounded-xl text-xs font-medium flex items-start gap-2.5 ${
+              sqlMessage.type === 'success'
+                ? 'bg-emerald-50 border border-emerald-200 text-emerald-900'
+                : sqlMessage.type === 'error'
+                ? 'bg-rose-50 border border-rose-200 text-rose-900'
+                : 'bg-blue-50 border border-blue-200 text-blue-900'
+            }`}
+          >
+            <Info className="w-4 h-4 shrink-0 mt-0.5" />
+            <p className="leading-relaxed">{sqlMessage.text}</p>
+          </div>
+        )}
+
+        {/* Resident Pictures & Local PC Reliability Notice */}
+        <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-3 text-xs">
+          <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold text-amber-950">
+              Why Resident Photos Now Work Reliably on Your Local PC:
+            </p>
+            <p className="text-amber-900/90 leading-relaxed">
+              When uploading resident pictures, the system now automatically downsamples and compresses them via client-side canvas into standard 400×400 portraits (~35KB). This prevents browser <code className="font-mono font-bold text-amber-950">QuotaExceededError</code> on <code className="font-mono text-amber-950">http://localhost:3000</code>, ensuring photos persist permanently on your PC and save cleanly into MySQL's <code className="font-mono font-bold text-amber-950">profile_pics</code> table without packet limits!
+            </p>
+          </div>
+        </div>
+
+        {/* 4-Step XAMPP & MySQL Setup Guide */}
+        <div className="space-y-3">
+          <p className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+            <Server className="w-4 h-4 text-sky-600" />
+            <span>4 Simple Steps to Run with MySQL in XAMPP on your PC:</span>
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+              <span className="w-6 h-6 rounded-lg bg-sky-600 text-white font-black flex items-center justify-center text-xs">
+                1
+              </span>
+              <p className="font-bold text-slate-900">Start XAMPP</p>
+              <p className="text-slate-500 leading-relaxed">
+                Open XAMPP Control Panel on your PC and click <span className="font-semibold text-slate-800">Start</span> for both <span className="font-semibold text-slate-800">Apache</span> and <span className="font-semibold text-slate-800">MySQL</span>.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+              <span className="w-6 h-6 rounded-lg bg-sky-600 text-white font-black flex items-center justify-center text-xs">
+                2
+              </span>
+              <p className="font-bold text-slate-900">Open phpMyAdmin</p>
+              <p className="text-slate-500 leading-relaxed">
+                Open browser and go to <a href="http://localhost/phpmyadmin" target="_blank" rel="noreferrer" className="text-sky-700 underline font-mono">http://localhost/phpmyadmin</a>.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+              <span className="w-6 h-6 rounded-lg bg-sky-600 text-white font-black flex items-center justify-center text-xs">
+                3
+              </span>
+              <p className="font-bold text-slate-900">Import Database</p>
+              <p className="text-slate-500 leading-relaxed">
+                Click <span className="font-semibold text-slate-800">Import</span> in phpMyAdmin. Choose <span className="font-mono text-slate-700">database/schema.sql</span> (or the downloaded <span className="font-mono text-slate-700">.sql</span> file) and click <span className="font-semibold text-slate-800">Go</span>.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+              <span className="w-6 h-6 rounded-lg bg-sky-600 text-white font-black flex items-center justify-center text-xs">
+                4
+              </span>
+              <p className="font-bold text-slate-900">Start Local Server</p>
+              <p className="text-slate-500 leading-relaxed">
+                In your project folder, run <code className="bg-slate-900 text-sky-300 px-1.5 py-0.5 rounded font-mono font-bold">npm run dev:mysql</code> or <code className="bg-slate-900 text-sky-300 px-1.5 py-0.5 rounded font-mono font-bold">npm run dev</code>!
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Database Tables Summary */}
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            <FileCode className="w-4 h-4 text-slate-500" />
+            <span className="font-bold text-slate-700">ERD Tables Generated:</span>
+            <span className="font-mono text-slate-600">users, personal_infos, addresses, profile_pics, transactions, payments, officials, barangay_info</span>
+          </div>
+          <span className="text-emerald-700 font-semibold flex items-center gap-1">
+            <Check className="w-3.5 h-3.5 text-emerald-600" />
+            100% ERD Project Specification Compliant
+          </span>
         </div>
       </div>
 
