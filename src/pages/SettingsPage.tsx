@@ -16,6 +16,11 @@ import {
   RefreshCw,
   FileCode,
   Check,
+  Table,
+  Eye,
+  HelpCircle,
+  FolderOpen,
+  ArrowRight,
 } from 'lucide-react';
 import { downloadMySqlDump } from '../utils/sqlExporter';
 
@@ -85,6 +90,10 @@ export const SettingsPage: React.FC = () => {
   const [isExportingSql, setIsExportingSql] = useState(false);
   const [isSyncingSql, setIsSyncingSql] = useState(false);
   const [sqlMessage, setSqlMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  // Live MySQL Table Inspector state
+  const [inspectTable, setInspectTable] = useState<'personal_infos' | 'addresses' | 'transactions' | 'payments' | 'users' | 'officials'>('personal_infos');
+  const [showInspector, setShowInspector] = useState(false);
 
   const handleDownloadMySql = () => {
     setIsExportingSql(true);
@@ -486,18 +495,250 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Database Tables Summary */}
-        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+        {/* Where is my database & added data? Interactive Helper */}
+        <div className="p-4 rounded-xl bg-sky-50/70 border border-sky-200 space-y-3 text-xs">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="w-4 h-4 text-sky-700 shrink-0" />
+            <h4 className="font-bold text-sky-950 text-sm">
+              Don't see "barangay_db" when you open phpMyAdmin on your PC?
+            </h4>
+          </div>
+          <p className="text-sky-900 leading-relaxed">
+            By default, fresh MySQL / XAMPP installations only show default system tables (<code className="font-mono font-bold text-sky-950">information_schema</code>, <code className="font-mono font-bold text-sky-950">mysql</code>, <code className="font-mono font-bold text-sky-950">test</code>). Your database will appear as soon as you import it!
+          </p>
+          <div className="bg-white p-3 rounded-lg border border-sky-100 space-y-2">
+            <p className="font-semibold text-slate-800">
+              Here is how to make your database and added data appear in phpMyAdmin:
+            </p>
+            <ol className="list-decimal list-inside space-y-1 text-slate-600">
+              <li>
+                Click <span className="font-bold text-sky-800">"Download MySQL Database (.sql)"</span> button above (this downloads all your current residents, photos, and transactions).
+              </li>
+              <li>
+                Open <a href="http://localhost/phpmyadmin" target="_blank" rel="noreferrer" className="text-sky-700 underline font-mono font-bold">http://localhost/phpmyadmin</a> in your browser.
+              </li>
+              <li>
+                Click the <span className="font-bold text-slate-800">"Import"</span> tab at the top menu.
+              </li>
+              <li>
+                Click <span className="font-bold text-slate-800">"Choose File"</span>, select the downloaded <span className="font-mono text-slate-800">barangay_db_mysql_....sql</span>, and scroll down and click <span className="font-bold text-emerald-700">"Go" / "Import"</span>.
+              </li>
+              <li>
+                Look at the left sidebar: <span className="font-mono font-bold text-emerald-800">barangay_db</span> will now be visible! Click on it to browse tables like <span className="font-mono font-bold text-slate-800">personal_infos</span>, <span className="font-mono font-bold text-slate-800">transactions</span>, and <span className="font-mono font-bold text-slate-800">profile_pics</span>.
+              </li>
+            </ol>
+          </div>
+        </div>
+
+        {/* Database Tables Summary & Live Table Inspector Toggle */}
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2">
             <FileCode className="w-4 h-4 text-slate-500" />
-            <span className="font-bold text-slate-700">ERD Tables Generated:</span>
-            <span className="font-mono text-slate-600">users, personal_infos, addresses, profile_pics, transactions, payments, officials, barangay_info</span>
+            <span className="font-bold text-slate-700">ERD Tables:</span>
+            <span className="font-mono text-slate-600 text-[11px]">
+              personal_infos ({residents.length}), transactions ({transactions.length}), payments ({payments.length}), users ({users.length})
+            </span>
           </div>
-          <span className="text-emerald-700 font-semibold flex items-center gap-1">
-            <Check className="w-3.5 h-3.5 text-emerald-600" />
-            100% ERD Project Specification Compliant
-          </span>
+
+          <button
+            type="button"
+            onClick={() => setShowInspector(!showInspector)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold transition-colors cursor-pointer text-xs"
+          >
+            <Table className="w-3.5 h-3.5 text-sky-600" />
+            <span>{showInspector ? 'Hide Table Inspector' : 'Inspect Database Tables Live'}</span>
+          </button>
         </div>
+
+        {/* Live Database Table Inspector Drawer */}
+        {showInspector && (
+          <div className="p-4 bg-slate-900 text-slate-100 rounded-xl space-y-3 animate-in fade-in duration-200 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-sky-400" />
+                <span className="font-bold text-sm">MySQL Database Inspector: barangay_db</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {(['personal_infos', 'addresses', 'transactions', 'payments', 'users', 'officials'] as const).map((tbl) => (
+                  <button
+                    key={tbl}
+                    type="button"
+                    onClick={() => setInspectTable(tbl)}
+                    className={`px-2.5 py-1 rounded-lg font-mono text-[11px] cursor-pointer transition-colors ${
+                      inspectTable === tbl
+                        ? 'bg-sky-600 text-white font-bold'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {tbl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Table Contents View */}
+            <div className="overflow-x-auto max-h-72">
+              {inspectTable === 'personal_infos' && (
+                <table className="w-full text-left font-mono text-[11px]">
+                  <thead className="bg-slate-800 text-sky-300 border-b border-slate-700">
+                    <tr>
+                      <th className="p-2">record_no</th>
+                      <th className="p-2">first_name</th>
+                      <th className="p-2">last_name</th>
+                      <th className="p-2">sex</th>
+                      <th className="p-2">civil_status</th>
+                      <th className="p-2">bday</th>
+                      <th className="p-2">phone</th>
+                      <th className="p-2">has_photo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {residents.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-800/50">
+                        <td className="p-2 text-emerald-400 font-bold">{r.recordNo}</td>
+                        <td className="p-2">{r.firstName}</td>
+                        <td className="p-2">{r.lastName}</td>
+                        <td className="p-2">{r.sex}</td>
+                        <td className="p-2">{r.civilStatus}</td>
+                        <td className="p-2">{r.bday}</td>
+                        <td className="p-2 text-slate-400">{r.phone}</td>
+                        <td className="p-2">
+                          {r.avatarUrl ? (
+                            <span className="text-emerald-400 font-bold">YES (~35KB)</span>
+                          ) : (
+                            <span className="text-slate-500">NO</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {inspectTable === 'addresses' && (
+                <table className="w-full text-left font-mono text-[11px]">
+                  <thead className="bg-slate-800 text-sky-300 border-b border-slate-700">
+                    <tr>
+                      <th className="p-2">person_id</th>
+                      <th className="p-2">bldg_no</th>
+                      <th className="p-2">purok</th>
+                      <th className="p-2">barangay</th>
+                      <th className="p-2">city_municipal</th>
+                      <th className="p-2">status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {residents.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-800/50">
+                        <td className="p-2 text-emerald-400">{r.id}</td>
+                        <td className="p-2">{r.address.bldgNo}</td>
+                        <td className="p-2 text-amber-300">{r.address.purok}</td>
+                        <td className="p-2">{r.address.barangay}</td>
+                        <td className="p-2">{r.address.cityMunicipal}</td>
+                        <td className="p-2 text-slate-400">{r.address.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {inspectTable === 'transactions' && (
+                <table className="w-full text-left font-mono text-[11px]">
+                  <thead className="bg-slate-800 text-sky-300 border-b border-slate-700">
+                    <tr>
+                      <th className="p-2">transaction_code</th>
+                      <th className="p-2">document_type</th>
+                      <th className="p-2">person_id</th>
+                      <th className="p-2">status</th>
+                      <th className="p-2">fee</th>
+                      <th className="p-2">purpose</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {transactions.map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-800/50">
+                        <td className="p-2 text-emerald-400 font-bold">{t.transactionCode}</td>
+                        <td className="p-2 text-white">{t.documentType}</td>
+                        <td className="p-2 text-slate-400">{t.personId}</td>
+                        <td className="p-2">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              t.status === 'Released'
+                                ? 'bg-emerald-900/60 text-emerald-300'
+                                : t.status === 'Approved'
+                                ? 'bg-blue-900/60 text-blue-300'
+                                : 'bg-amber-900/60 text-amber-300'
+                            }`}
+                          >
+                            {t.status}
+                          </span>
+                        </td>
+                        <td className="p-2 text-amber-400 font-bold">₱{t.fee.toFixed(2)}</td>
+                        <td className="p-2 text-slate-300 truncate max-w-xs">{t.purpose}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {inspectTable === 'payments' && (
+                <table className="w-full text-left font-mono text-[11px]">
+                  <thead className="bg-slate-800 text-sky-300 border-b border-slate-700">
+                    <tr>
+                      <th className="p-2">payment_code</th>
+                      <th className="p-2">transaction_code</th>
+                      <th className="p-2">or_number</th>
+                      <th className="p-2">amount</th>
+                      <th className="p-2">method</th>
+                      <th className="p-2">status</th>
+                      <th className="p-2">collected_by</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {payments.map((p) => (
+                      <tr key={p.id} className="hover:bg-slate-800/50">
+                        <td className="p-2 text-emerald-400 font-bold">{p.paymentCode}</td>
+                        <td className="p-2 text-slate-300">{p.transactionCode}</td>
+                        <td className="p-2 text-white font-bold">{p.orNumber}</td>
+                        <td className="p-2 text-amber-400">₱{p.amount.toFixed(2)}</td>
+                        <td className="p-2 text-slate-400">{p.paymentMethod}</td>
+                        <td className="p-2 text-emerald-300 font-semibold">{p.status}</td>
+                        <td className="p-2 text-slate-400">{p.collectedBy}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {inspectTable === 'users' && (
+                <table className="w-full text-left font-mono text-[11px]">
+                  <thead className="bg-slate-800 text-sky-300 border-b border-slate-700">
+                    <tr>
+                      <th className="p-2">id</th>
+                      <th className="p-2">username</th>
+                      <th className="p-2">role</th>
+                      <th className="p-2">full_name</th>
+                      <th className="p-2">email</th>
+                      <th className="p-2">status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {users.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-800/50">
+                        <td className="p-2 text-slate-400">{u.id}</td>
+                        <td className="p-2 text-emerald-400 font-bold">{u.username}</td>
+                        <td className="p-2 text-amber-300">{u.role}</td>
+                        <td className="p-2 text-white">{u.fullName}</td>
+                        <td className="p-2 text-slate-400">{u.email}</td>
+                        <td className="p-2 text-emerald-300">{u.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Offline Deployment & Barangay Local Area Network (LAN) Guide */}
